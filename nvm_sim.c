@@ -21,10 +21,12 @@
  * genealogies converge to coalescing Brownian motions, the Brownian web, and
  * the marks to a Poisson process of rate lambda along them: the limit is the
  * Continuum Noisy Voter Model of Fontes, Isopi, Newman and Ravishankar,
- * https://arxiv.org/abs/math/0404505. In the limit, at a large time, the
- * correlation of the colours of two sites at distance d is
+ * https://arxiv.org/abs/math/0404505. In the limit, at a large time, on the
+ * line, the correlation of the colours of two sites at distance d is
  * exp(-sqrt(2 lambda) d), and the interfaces between the two colours have
- * density sqrt(lambda/2).
+ * density sqrt(lambda/2). On the ring of length L the density is
+ * sqrt(lambda/2) tanh(L sqrt(lambda/2)): it is the one of the line when the
+ * ring is long with respect to 1/sqrt(2 lambda).
  *
  * The interfaces are, in the limit, the ones of the Glauber dynamics with
  * intensity nu = sqrt(lambda/2), with the time of the Glauber dynamics equal
@@ -251,9 +253,13 @@ int main(void) {
     printf("N = %d, L = %d, T = %.15g, lambda = %.15g, seed = %lu: %d rows of %d sites\n",
            big_n, length, final_time, lambda, seed, saved, n);
     if (rows_counted > 0) {
+        /* The limit at a large time: sqrt(lambda/2) on the line, and
+           sqrt(lambda/2) tanh(L sqrt(lambda/2)) on the ring of length L. */
+        const double on_the_line = sqrt(lambda / 2.0);
         printf("Interfaces in a unit of length, averaged over the second half of the run: %.4f"
-               " (in the limit sqrt(lambda/2) = %.4f)\n",
-               interfaces / rows_counted / length, sqrt(lambda / 2.0));
+               " (in the limit %.4f on this ring, sqrt(lambda/2) = %.4f on the line)\n",
+               interfaces / rows_counted / length, on_the_line * tanh(length * on_the_line),
+               on_the_line);
     }
 
     gsl_rng_free(rng);
