@@ -18,14 +18,17 @@ with open("output.txt") as f:
 parameters = dict(item.split("=") for item in header.split())
 colours = np.loadtxt("output.txt", ndmin=2)
 
-# The first row is the time 0 and the last one the final time.
+# The row j is the time j/resolution: it is drawn as a band of height
+# 1/resolution, centred at its time.
 length = float(parameters["L"])
-last_time = (colours.shape[0] - 1) / float(parameters["resolution"])
+step = 1.0 / float(parameters["resolution"])
+last_time = (colours.shape[0] - 1) * step
 
 plt.figure(figsize=(10, 4))
 plt.imshow(colours, cmap=ListedColormap(["#2166ac", "#d73027"]), vmin=0, vmax=1,
            aspect="auto", interpolation="nearest", origin="lower",
-           extent=(0, length, 0, last_time))
+           extent=(0, length, -step / 2, last_time + step / 2))
+plt.ylim(0, max(last_time, step / 2))
 plt.xlabel("Space")
 plt.ylabel("Time")
 plt.title("Noisy Voter Model  (" + header + ")")
