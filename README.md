@@ -46,7 +46,7 @@ On the ring of length $L$ the density of the interfaces is $\sqrt{\lambda/2}\tan
 
 ## The Glauber Dynamics
 
-Read as a two-colour voter model, the Glauber dynamics of the Ising chain is a noisy voter model in continuous time. With $\nu$ the intensity of its interfaces and $\tau$ its macroscopic time, the two models have the same limit for
+Read as a two-colour voter model, the Glauber dynamics of the Ising chain is a noisy voter model in continuous time. With $\nu$ the intensity of its interfaces, $\tau$ its macroscopic time, in which an isolated interface has variance $2$ in a unit of time, and $t$ the time of this program, in which it has variance $1$, the two models have the same limit for
 
 ```math
 \lambda = 2\nu^2, \qquad t = 2\tau.
@@ -88,7 +88,7 @@ The program writes
 - **`output.txt`** A first line with the parameters, and then one line for each saved time, from the time $0$: the colours of the sites of the row.
 - **`output.pgm`** The same as a picture, with the time going upwards.
 
-It prints the density of the interfaces, averaged over the second half of the run, next to its limit on the ring and on the line.
+It prints the density of the interfaces, averaged over the second half of the run, next to its limit on the ring and on the line. With the default parameters the ring has less than one interface on average, so the density of one run is far from the limit. The check below uses a long ring.
 
 ---
 
@@ -102,16 +102,18 @@ r = \frac{(2-s)-2\sqrt{1-s}}{s}, \qquad s = \Big(1-\frac{\lambda}{N^2}\Big)^2,
 
 and the density of the interfaces is $N(1-r)/4$. On a ring with $n = NL/2$ sites in a row the correlation is $(r^j + r^{n-j})/(1 + r^n)$ and the density is $N(1-r)(1-r^{n-1})/(4(1+r^n))$.
 
-- **Density** With $N = 100$, $L = 200$ and $\lambda = 2$, up to the time $6$, ten runs give $0.985 \pm 0.007$. On the lattice it is $0.980$, and in the limit $1$.
+- **Density** With $N = 100$, $L = 200$ and $\lambda = 2$, up to the time $6$, ten runs give $0.985 \pm 0.007$. On the lattice it is $0.980$, and in the limit $1$. The seed is given at compile time, so the program is compiled once for each seed, from $1$ to $10$.
 
 ```bash
-cc -DN=100 -DL=200 -DT=6 -DLAMBDA=2 -DSEED=1 nvm_sim.c -o nvm_sim -lgsl -lgslcblas -lm
-./nvm_sim              # once for each seed, from 1 to 10
+for s in 1 2 3 4 5 6 7 8 9 10; do
+    cc -DN=100 -DL=200 -DT=6 -DLAMBDA=2 -DSEED=$s nvm_sim.c -o nvm_sim -lgsl -lgslcblas -lm
+    ./nvm_sim
+done
 ```
 
 ---
 
 ## Figures
 
-- **The noisy voter model** with $N = 150$, $L = 4$ and $\lambda = 2$, up to the time $2$. It is the second command above.
+- **The noisy voter model** with $N = 150$, $L = 4$ and $\lambda = 2$, up to the time $2$. It is `output.png` for the second `cc` command above, the one with the seed $2026$.
   ![The noisy voter model](figures/nvmN150L4T2Lambda2.png)

@@ -29,8 +29,9 @@
  * ring is long with respect to 1/sqrt(2 lambda).
  *
  * The interfaces are, in the limit, the ones of the Glauber dynamics with
- * intensity nu = sqrt(lambda/2), with the time of the Glauber dynamics equal
- * to half of the time of this program.
+ * intensity nu = sqrt(lambda/2), with the macroscopic time of the Glauber
+ * dynamics, in which an isolated interface has variance 2 in a unit of time,
+ * equal to half of the time of this program.
  *
  * A genealogy moves by one site at each step, so the genealogy of the site x
  * at the step k stays on the sites y, at the step j, with y + j of the parity
