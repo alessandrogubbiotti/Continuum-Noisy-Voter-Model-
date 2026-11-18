@@ -49,7 +49,10 @@
  *
  *     cc -DN=150 -DL=4 -DLAMBDA=2 nvm_sim.c -o nvm_sim -lgsl -lgslcblas -lm
  *
- * N, L and RESOLUTION are integers, T and LAMBDA are real numbers.
+ * N, L and RESOLUTION are integers, T and LAMBDA are real numbers. A fraction
+ * is written with the decimal point: 0.5 and not 1/2, which in C is 0.
+ * With SEED 0, the default, the seed is taken from the clock, in seconds: two
+ * runs started in the same second are the same run.
  *
  * output.txt has a first line with the parameters and then one line for each
  * saved time, RESOLUTION of them in a unit of time, from the time 0: the
@@ -67,6 +70,7 @@
 #undef L
 #undef T
 #include <gsl/gsl_rng.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -184,9 +188,19 @@ int main(void) {
         fprintf(stderr, "LAMBDA must be at most N^2\n");
         return 1;
     }
+    /* The sites of a row and the saved rows are counted with an int, and the
+       steps with a long long. */
+    if ((long long)big_n * length / 2 > INT_MAX
+        || !(final_time * (double)resolution < 2.0e9)
+        || !(final_time * (double)resolution * (double)steps_per_unit < 4.0e18)) {
+        fprintf(stderr, "N*L or T is too large\n");
+        return 1;
+    }
 
     const int n = (int)((long long)big_n * length / 2);            /* sites of a row */
-    const long long steps = (long long)floor(final_time * (double)steps_per_unit + 0.5);
+    /* The number of steps is even, the nearest to T N^2: the rows are saved at
+       the even steps, and so the row of the final time is saved too. */
+    const long long steps = 2 * (long long)floor(final_time * (double)steps_per_unit / 2.0 + 0.5);
     int n_rows = 0;                                                 /* the time 0 is saved too */
     while (saving_step(n_rows, steps_per_unit, resolution) <= steps) n_rows += 1;
 
