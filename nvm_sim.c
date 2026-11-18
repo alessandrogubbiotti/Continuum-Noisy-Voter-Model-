@@ -1,280 +1,264 @@
+/*
+ * nvm_sim.c -- the noisy voter model on a ring, in the diffusive scaling.
+ *
+ * Every site has one of two colours, and time is discrete. At each step every
+ * site, independently of the others,
+ *
+ *     with probability lambda/N^2    is marked: it takes a new colour, 0 or 1
+ *                                    with probability 1/2;
+ *     otherwise                      takes the colour that one of its two
+ *                                    neighbours, the left or the right one with
+ *                                    probability 1/2, had at the step before.
+ *
+ * So the colour of a site is found by following its genealogy backwards in
+ * time, a random walk that at each step goes to the left or to the right, until
+ * the first mark is met. The genealogies of two sites are independent until
+ * they meet, and then they are the same: they are coalescing random walks,
+ * marked with a geometric clock of parameter lambda/N^2. At time 0 all the
+ * sites are marked, so the colours are independent.
+ *
+ * Sites are spaced by 1/N and a unit of time is N^2 steps. As N grows the
+ * genealogies converge to coalescing Brownian motions, the Brownian web, and
+ * the marks to a Poisson process of rate lambda along them: the limit is the
+ * Continuum Noisy Voter Model of Fontes, Isopi, Newman and Ravishankar,
+ * https://arxiv.org/abs/math/0404505. In the limit, at a large time, the
+ * correlation of the colours of two sites at distance d is
+ * exp(-sqrt(2 lambda) d), and the interfaces between the two colours have
+ * density sqrt(lambda/2).
+ *
+ * The interfaces are, in the limit, the ones of the Glauber dynamics with
+ * intensity nu = sqrt(lambda/2), with the time of the Glauber dynamics equal
+ * to half of the time of this program.
+ *
+ * A genealogy moves by one site at each step, so the genealogy of the site x
+ * at the step k stays on the sites y, at the step j, with y + j of the parity
+ * of x + k. The two sublattices never meet and carry two independent copies of
+ * the model. Only one of them is simulated: at the step k the sites x with
+ * x + k even. A row has N*L/2 sites, spaced by 2/N.
+ *
+ * Compile and run (the GSL is needed):
+ *
+ *     cc nvm_sim.c -o nvm_sim -lgsl -lgslcblas -lm
+ *     ./nvm_sim              writes output.txt and output.pgm
+ *     python3 plot.py        writes output.png
+ *
+ * The parameters are the #define below. They can also be given at compile
+ * time, for instance
+ *
+ *     cc -DN=150 -DL=4 -DLAMBDA=2 nvm_sim.c -o nvm_sim -lgsl -lgslcblas -lm
+ *
+ * N, L and RESOLUTION are integers, T and LAMBDA are real numbers.
+ *
+ * output.txt has a first line with the parameters and then one line for each
+ * saved time, RESOLUTION of them in a unit of time, from the time 0: the
+ * colours of the sites of the row.
+ * output.pgm is the same as a picture, with the time going upwards.
+ */
+
+/* A parameter given with -D is a macro also while the headers are read, and
+   the header of the GSL has a variable called T: the one-letter parameters
+   are put aside here and taken back after the headers. */
+#pragma push_macro("N")
+#pragma push_macro("L")
+#pragma push_macro("T")
+#undef N
+#undef L
+#undef T
+#include <gsl/gsl_rng.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <gsl/gsl_rng.h>
 #include <time.h>
-#include <math.h>
-#define N 300    // space
-#define T 180000    // time
-#define IDX(x,t) ((t) * N + (x))  // flat indexing
+#pragma pop_macro("T")
+#pragma pop_macro("L")
+#pragma pop_macro("N")
 
+/* Parameters */
+#ifndef N
+#define N 300           /* Sites in a unit of length */
+#endif
+#ifndef L
+#define L 1             /* Length of the ring */
+#endif
+#ifndef T
+#define T 2             /* Final time: N^2 steps for each unit */
+#endif
+#ifndef LAMBDA
+#define LAMBDA 1.0      /* Rate of the marks along a genealogy */
+#endif
+#ifndef RESOLUTION
+#define RESOLUTION 100  /* Saved rows in a unit of time */
+#endif
+#ifndef SEED
+#define SEED 0          /* Random seed; with 0 it is taken from the clock */
+#endif
 
-/////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////
-// The present program makes tries to simulate the Continuum Noisy Voter Model (CNVM))
-// We simulate a system of coalescing random walks and we mark them with a 
-// geometric (since we are discrete) clock of paramerer lamnda/N. 
-// The results look like the first program I had made, even if here I am 
-// rescaling the space diffusively, fully simularing the deiscrete dynamics 
-/////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////
-
-
-
-//typedef struct { 
-//	// The parameters needed to define
-//	int N; // scaling parameter
-//	double T;
-//	int L; 
-//	double annihilation;  // annihilation rates of the microscopic model
-//	double creation;  // creation rates of the microscopical model
-//	// The flipping rates for an interface spin are assumed to be 1; 
-//	//  The parameters needed to discretize the dynamics
-//
-//	int N_simulations; // number of independent simulations
-//	int resolution; // Number of subntervals in which to divide the unit of macroscopic time. Since we need N^2 time steps of the microscopic dynamics, we need to plot N*N/resolution micro evolutions
-//	int Micro_n_steps; // Number of time steps in which to divide the microscopic dynamics. It should be made in such a way that annihilation/Micro_Time_Step << 1, and we must pay attention to the resolution for the Mersenne Twister, that is creation/Micro_Time_Step must be detectable by a uniformly generated random variable.  
-//	
-//	Initialization_function initialize; // Pointer to the function that initializes the spins at time 0.
-//	void *initialization_param; // The void pointer will hold the third argument of the above function. It will be a double pointer if the initial distribution needs a parameter, a NULL pointer otherwise
-//
-
-typedef struct Node {
-    struct Node *parents[2]; // backward edges
-    struct Node *child;      // forward pointer
-    int n_parents;
-    int is_marked;
-    int color;               // -1 = uninitialized, 0 or 1 = opinion
-} Node;
-
-
-
-
-//
-//int set_N(Configuration *conf, const char *value);
-//
-//int set_T(Configuration *conf, const char *value);
-//
-//int set_L(Configuration *conf, const char *value); 
-//
-//int set_N_simulations(Configuration *conf, const char *value); 
-//
-//int set_resolution(Configuration *conf, const char *value); 
-//
-//int set_Micro_n_steps(Configuration *conf, const char *value); 
-//
-//typedef struct {
-//    const char *key;
-//    ConfigSetter setter;
-//} ConfigEntry; // This structure will be used to associate to each character which field of conf to fill, that is, which  Config_setter to use 
-//
-//
-//
-//
-//ConfigEntry config_table[] = {
-//    {"N", set_N},
-//    {"T", set_T},
-//    {"L", set_L},
-//    {"N_simulations", set_N_simulations}, 
-//    {"resolution", set_resolution},
-//    {"Micro_n_steps", set_Micro_n_steps},
-//    {NULL, NULL} //A sentinel indicating the end of the structure. 
-//}; // I need to validate the variables that I read!!!REMEMBER Ok, let's use the simple suggestion  and write a validating function 
-//
-Node grid[N * T];
-
-
-void initialize_tree(double lambda, gsl_rng *rng) {
-    // Initialize all nodes
-    for (int t = 0; t < T; ++t) {
-        for (int x = 0; x < N; ++x) {
-            Node *n = &grid[IDX(x, t)];
-            n->n_parents = 0;
-            n->is_marked = 0;
-            n->color = -1;
-            n->child = NULL;
-        }
-    }
-
-    // Each node at time t chooses a child at t+1
-    for (int t = 0; t < T - 1; ++t) {
-        for (int x = 0; x < N; ++x) {
-            Node *parent = &grid[IDX(x, t)];
-
-            int dir = gsl_rng_uniform_int(rng, 2); // 0 = left, 1 = right
-            int child_x = wrap(x + (dir == 0 ? -1 : 1));
-            Node *child = &grid[IDX(child_x, t + 1)];
-
-            parent->child = child;
-            child->parents[child->n_parents++] = parent;
-
-            // Optional: mark nodes at random (except at t = T-1, handled separately)
-            parent->is_marked = (gsl_rng_uniform(rng) < lambda / N);
-            if (parent->is_marked)
-                parent->color = gsl_rng_uniform_int(rng, 2);
-        }
-    }
-
-    // Final row (leaves): force marking and random color
-    for (int x = 0; x < N; ++x) {
-        Node *leaf = &grid[IDX(x, T - 1)];
-        leaf->is_marked = 1; // force mark
-        leaf->color = gsl_rng_uniform_int(rng, 2); // initial opinion
-        // no child
-    }
-}
-
-// New propagate_color function (no recursion)
-void propagate_color(Node *n, gsl_rng *rng) {
-    if (n->color == -1) return;  // skip if not colored
-
-    for (int i = 0; i < n->n_parents; ++i) {
-        Node *p = n->parents[i];
-        if (p->color == -1) {
-            if (p->is_marked) {
-                // Assign random color to marked parents
-                p->color = gsl_rng_uniform_int(rng, 2);
-            } else {
-                // Inherit child's color if not marked
-                p->color = n->color;
-            }
-            // No further propagation here
-        }
-    }
-}
-
-void assign_colors_backwards(gsl_rng *rng) {
-    // Since no recursion, we do multiple passes backward through time to propagate colors
-    for (int t = T - 1; t > 0; --t) {
-        for (int x = 0; x < N; ++x) {
-            Node *n = &grid[IDX(x, t)];
-            propagate_color(n, rng);
-        }
-    }
-
-    // Assign fallback color for uncolored nodes
-    for (int i = 0; i < N * T; ++i) {
-        if (grid[i].color == -1)
-            grid[i].color = 0;
-    }
-}
-
-
-// Output color field to .pgm grayscale image
-void write_colors_pgm(const char *filename) {
-    FILE *f = fopen(filename, "wb");
-    if (!f) {
-        perror("fopen");
-        exit(EXIT_FAILURE);
-    }
-
-    fprintf(f, "P5\n%d %d\n255\n", N, T);
-    for (int t = 0; t < T; ++t) {
-        for (int x = 0; x < N; ++x) {
-            unsigned char pixel = (unsigned char)(grid[IDX(x, t)].color * 255);
-            fwrite(&pixel, sizeof(unsigned char), 1, f);
-        }
-    }
-
-    fclose(f);
-}
-
-
-void write_colors_txt(const char *filename) {
+/* The colours of the saved rows, one byte for each site. */
+static void write_colors_txt(const char *filename, const unsigned char *rows, int n_rows, int n,
+                             unsigned long seed) {
     FILE *f = fopen(filename, "w");
     if (!f) {
-        perror("fopen");
+        perror(filename);
         exit(EXIT_FAILURE);
     }
 
-    for (int t = 0; t < T; ++t) {
-        for (int x = 0; x < N; ++x) {
-            fprintf(f, " %d ", grid[IDX(x, t)].color);
-            if (x < N - 1)
-                fputc(',', f);  // comma between values
+    fprintf(f, "# N=%d L=%d T=%.15g lambda=%.15g resolution=%d seed=%lu\n",
+            (int)(N), (int)(L), (double)(T), (double)(LAMBDA), (int)(RESOLUTION), seed);
+    for (int t = 0; t < n_rows; ++t) {
+        for (int x = 0; x < n; ++x) {
+            fputc('0' + rows[(size_t)t * n + x], f);
+            fputc(x < n - 1 ? ' ' : '\n', f);
         }
-        fputc('\n', f);  // newline after each time slice
     }
 
-    fclose(f);
+    int failed = ferror(f);
+    if (fclose(f) != 0) failed = 1;
+    if (failed) {
+        fprintf(stderr, "%s could not be written completely\n", filename);
+        exit(EXIT_FAILURE);
+    }
 }
 
-void write_colors_bin(const char *filename) {
+/* Output color field to .pgm grayscale image. The last time is the first line
+   of the picture, so that the time goes upwards. */
+static void write_colors_pgm(const char *filename, const unsigned char *rows, int n_rows, int n) {
     FILE *f = fopen(filename, "wb");
     if (!f) {
-        perror("fopen");
+        perror(filename);
         exit(EXIT_FAILURE);
     }
 
-    for (int t = 0; t < T; ++t) {
-        for (int x = 0; x < N; ++x) {
-            unsigned char c = (unsigned char)grid[IDX(x, t)].color;
-            fwrite(&c, sizeof(unsigned char), 1, f);
+    fprintf(f, "P5\n%d %d\n255\n", n, n_rows);
+    for (int t = n_rows - 1; t >= 0; --t) {
+        for (int x = 0; x < n; ++x) {
+            fputc(rows[(size_t)t * n + x] * 255, f);
         }
     }
 
-    fclose(f);
+    int failed = ferror(f);
+    if (fclose(f) != 0) failed = 1;
+    if (failed) {
+        fprintf(stderr, "%s could not be written completely\n", filename);
+        exit(EXIT_FAILURE);
+    }
 }
 
-int main() {
-    const double lambda = 1.0/N; 
+/* The step at which the row number j is saved: the first even step not before
+   j N^2/RESOLUTION. The steps are even so that all the saved rows are on the
+   same sites. */
+static long long saving_step(long long j, long long steps_per_unit, int resolution) {
+    return 2 * ((j * steps_per_unit + 2LL * resolution - 1) / (2LL * resolution));
+}
 
-    // Init GSL RNG
-    gsl_rng_env_setup();
+/* The number of interfaces of a row: the pairs of neighbours of different colour. */
+static int count_interfaces(const unsigned char *row, int n) {
+    int count = 0;
+    for (int x = 0; x < n; ++x) {
+        count += (row[x] != row[x + 1 == n ? 0 : x + 1]);
+    }
+    return count;
+}
+
+int main(void) {
+    const int big_n = (N), length = (L), resolution = (RESOLUTION);
+    const double lambda = (double)(LAMBDA), final_time = (double)(T);
+
+    /* The checks of the parameters. */
+    if (big_n < 2 || length < 1 || resolution < 1 || !(final_time > 0.0) || !(lambda >= 0.0)) {
+        fprintf(stderr, "N must be at least 2, L and RESOLUTION at least 1, T positive, LAMBDA not negative\n");
+        return 1;
+    }
+    const long long steps_per_unit = (long long)big_n * big_n;     /* N^2 */
+    if (((long long)big_n * length) % 2 != 0 || (long long)big_n * length < 4) {
+        fprintf(stderr, "N*L must be even and at least 4: the walks live on a sublattice of the ring\n");
+        return 1;
+    }
+    if (2LL * resolution > steps_per_unit) {
+        fprintf(stderr, "RESOLUTION must be at most N^2/2\n");
+        return 1;
+    }
+    const double mark = lambda / (double)steps_per_unit;           /* lambda/N^2 */
+    if (mark > 1.0) {
+        fprintf(stderr, "LAMBDA must be at most N^2\n");
+        return 1;
+    }
+
+    const int n = (int)((long long)big_n * length / 2);            /* sites of a row */
+    const long long steps = (long long)floor(final_time * (double)steps_per_unit + 0.5);
+    int n_rows = 0;                                                 /* the time 0 is saved too */
+    while (saving_step(n_rows, steps_per_unit, resolution) <= steps) n_rows += 1;
+
+    /* Init GSL RNG */
+    unsigned long seed = (unsigned long)(SEED);
+    if (seed == 0) seed = (unsigned long)time(NULL);
     gsl_rng *rng = gsl_rng_alloc(gsl_rng_mt19937);
-    gsl_rng_set(rng, time(NULL));
+    gsl_rng_set(rng, seed);
 
-    initialize_tree(lambda, rng);
-	assign_colors_backwards(rng);
-//	write_colors_pgm("output.pgm");
-	write_colors_bin("output.bin");
-	write_colors_txt("output.txt");
+    unsigned char *old = malloc((size_t)n);
+    unsigned char *new = malloc((size_t)n);
+    unsigned char *rows = malloc((size_t)n_rows * n);
+    if (!old || !new || !rows) {
+        perror("malloc");
+        return 1;
+    }
+
+    /* Time 0: all the sites are marked, the colours are independent. */
+    for (int x = 0; x < n; ++x) {
+        old[x] = (unsigned char)gsl_rng_uniform_int(rng, 2);
+        rows[x] = old[x];
+    }
+    int saved = 1;
+    long long next = saving_step(saved, steps_per_unit, resolution);
+    double interfaces = 0.0;    /* summed over the saved rows of the second half of the run */
+    int rows_counted = 0;
+
+    /* At the step k the row has the sites 2x + (k mod 2), x = 0, ..., n-1, of
+       the ring of N*L sites. The neighbours of the site x of an odd row are
+       the sites x and x+1 of the row before; the ones of the site x of an
+       even row are x-1 and x. */
+    for (long long k = 1; k <= steps; ++k) {
+        const int odd = (int)(k & 1);
+        for (int x = 0; x < n; ++x) {
+            if (gsl_rng_uniform(rng) < mark) {
+                /* A mark: a new colour. */
+                new[x] = (unsigned char)gsl_rng_uniform_int(rng, 2);
+            } else {
+                /* The colour of a neighbour: 0 = left, 1 = right. */
+                const int left  = odd ? x : (x == 0 ? n - 1 : x - 1);
+                const int right = odd ? (x + 1 == n ? 0 : x + 1) : x;
+                new[x] = old[gsl_rng_uniform_int(rng, 2) == 0 ? left : right];
+            }
+        }
+        unsigned char *swap = old;
+        old = new;
+        new = swap;
+
+        if (k == next) {
+            for (int x = 0; x < n; ++x) rows[(size_t)saved * n + x] = old[x];
+            if (2 * k >= steps) {
+                interfaces += count_interfaces(old, n);
+                rows_counted += 1;
+            }
+            saved += 1;
+            next = saving_step(saved, steps_per_unit, resolution);
+        }
+    }
+
+    write_colors_txt("output.txt", rows, saved, n, seed);
+    write_colors_pgm("output.pgm", rows, saved, n);
+
+    printf("Simulation complete. Output written to output.txt and output.pgm\n");
+    printf("N = %d, L = %d, T = %.15g, lambda = %.15g, seed = %lu: %d rows of %d sites\n",
+           big_n, length, final_time, lambda, seed, saved, n);
+    if (rows_counted > 0) {
+        printf("Interfaces in a unit of length, averaged over the second half of the run: %.4f"
+               " (in the limit sqrt(lambda/2) = %.4f)\n",
+               interfaces / rows_counted / length, sqrt(lambda / 2.0));
+    }
+
     gsl_rng_free(rng);
-    printf("Simulation complete. Output written to output.pgm\n");
+    free(old);
+    free(new);
+    free(rows);
     return 0;
 }
-
-int set_N(Configuration *conf, const char *value) {
-      printf("set_T called with value='%s'\n", value);
-    int v = atoi(value);
-    if (v <= 0) return -1;
-    printf(" The value of N: %d", v); 
-    conf->N = v;
-    printf(" The value of N: %d", conf -> N); 
-    return 0;
-}
-
-int set_T(Configuration *conf, const char *value) {
-    float v = atof(value);
-    if (v <= 0.0f) return -1;
-    conf->T = v;
-    return 0;
-}
-
-int set_L(Configuration *conf, const char *value) {
-    float v = atof(value);
-    if (v <= 0.0f) return -1;
-    conf->L = v;
-    return 0;
-}
-
-int set_N_simulations(Configuration *conf, const char *value) {
-    int v = atoi(value);
-    if (v <= 0) return -1;
-    conf->N_simulations = v;
-    return 0;
-}
-
-int set_resolution(Configuration *conf, const char *value) {
-    int v = atoi(value);
-    if (v <= 0) return -1;
-    conf->resolution = v;
-    return 0;
-}
-
-int set_Micro_n_steps(Configuration *conf, const char *value) {
-    int v = atoi(value);
-    if (v <= 0) return -1;
-    conf->Micro_n_steps = v;
-    return 0;
