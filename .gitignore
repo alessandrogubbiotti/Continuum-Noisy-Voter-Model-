@@ -50,6 +50,9 @@ core
 #.idea/
 
 
+# The files of the Finder of macOS
+.DS_Store
+
 # The program, what it writes and its picture
 /nvm_sim
 /output.txt
