@@ -49,3 +49,9 @@ core
 #.vscode/
 #.idea/
 
+
+# The program, what it writes and its picture
+/nvm_sim
+/output.txt
+/output.pgm
+/output.png
