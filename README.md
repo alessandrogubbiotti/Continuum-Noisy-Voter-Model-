@@ -27,7 +27,7 @@ At time $0$ all the sites are marked, so the colours are independent.
 
 The colour of a site is found by following its **genealogy** backwards in time: a random walk that at each step goes to the left or to the right, until the first mark is met. The genealogies of two sites are independent until they meet, and then they are the same: they are **coalescing random walks**, marked with a geometric clock of parameter $\lambda/N^2$.
 
-A genealogy moves by one site at each step, so it stays on the sites of one parity. The two sublattices never meet, and they carry two independent copies of the model. The program simulates one of them: a row has $NL/2$ sites, spaced by $2/N$.
+A genealogy moves by one site at each step, so along it the parity of $x + k$, the site plus the step, is constant. The points with $x + k$ even and the ones with $x + k$ odd never meet, and they carry two independent copies of the model. The program simulates one of them: a row has $NL/2$ sites, spaced by $2/N$.
 
 ---
 
@@ -73,7 +73,9 @@ The parameters are the `#define` at the top of `nvm_sim.c`:
 - **`T`** The final time. The default is `2`.
 - **`LAMBDA`** The rate of the marks. The default is `1.0`.
 - **`RESOLUTION`** The saved rows in a unit of time. The default is `100`.
-- **`SEED`** The seed of the random numbers. With `0`, the default, it is taken from the clock.
+- **`SEED`** The seed of the random numbers. With `0`, the default, it is taken from the clock, in seconds: two runs started in the same second are the same run.
+
+$NL$ has to be even, and `RESOLUTION` at most $N^2/2$. `T` and `LAMBDA` are real numbers, and a fraction is written with the decimal point: `0.5` and not `1/2`, which in C is `0`.
 
 They can also be given at compile time:
 
@@ -98,7 +100,7 @@ On the lattice of the program, at a large time and on a long ring, the correlati
 r = \frac{(2-s)-2\sqrt{1-s}}{s}, \qquad s = \Big(1-\frac{\lambda}{N^2}\Big)^2,
 ```
 
-and the density of the interfaces is $N(1-r)/4$.
+and the density of the interfaces is $N(1-r)/4$. On a ring with $n = NL/2$ sites in a row the correlation is $(r^j + r^{n-j})/(1 + r^n)$ and the density is $N(1-r)(1-r^{n-1})/(4(1+r^n))$.
 
 - **Density** With $N = 100$, $L = 200$ and $\lambda = 2$, up to the time $6$, ten runs give $0.985 \pm 0.007$. On the lattice it is $0.980$, and in the limit $1$.
 
