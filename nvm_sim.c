@@ -198,11 +198,11 @@ int main(void) {
     }
 
     const int n = (int)((long long)big_n * length / 2);            /* sites of a row */
-    /* The number of steps is even, the nearest to T N^2: the rows are saved at
-       the even steps, and so the row of the final time is saved too. */
-    const long long steps = 2 * (long long)floor(final_time * (double)steps_per_unit / 2.0 + 0.5);
-    int n_rows = 0;                                                 /* the time 0 is saved too */
-    while (saving_step(n_rows, steps_per_unit, resolution) <= steps) n_rows += 1;
+    /* The saved rows are the ones of the times j/RESOLUTION not after T, the
+       time 0 too, and the run ends at the step of the last one. The factor is
+       for the rounding of T: 0.29 * 100 is 28.999999999999996. */
+    const int n_rows = (int)floor(final_time * (double)resolution * (1.0 + 1e-12)) + 1;
+    const long long steps = saving_step(n_rows - 1, steps_per_unit, resolution);
 
     /* Init GSL RNG */
     unsigned long seed = (unsigned long)(SEED);
