@@ -2,7 +2,7 @@ Page's link: [The noisy voter model](https://alessandrogubbiotti.github.io/Glaub
 
 # Continuum Noisy Voter Model
 
-This repository simulates the **noisy voter model** on a ring, in discrete time: at each step a site takes the colour of one of its two neighbours, or a new colour if it is marked. Under a diffusive rescaling the random walks of the voter model become the Brownian web, and the model is the **Continuum Noisy Voter Model** of [Fontes, Isopi, Newman and Ravishankar](https://arxiv.org/abs/math/0404505).
+This repository simulates the **noisy voter model** on a ring, in discrete time: at each step a site takes the colour of one of its two neighbours, or a new colour if it is marked. Under a diffusive rescaling the random walks of the voter model become the Brownian web, and the model is the **Continuum Noisy Voter Model** of [Fontes, Isopi, Newman and Ravishankar](https://arxiv.org/abs/math/0404505). The convergence of the random walks to the Brownian web is in [The Brownian web: characterization and convergence](https://arxiv.org/abs/math/0311254), of the same authors. For the perturbations of the voter model in discrete time, see [Perturbations of the voter model in one dimension](https://arxiv.org/abs/1607.06058), of Newman, Ravishankar and Schertzer.
 
 ---
 
