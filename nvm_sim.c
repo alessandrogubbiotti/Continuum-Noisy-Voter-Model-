@@ -56,8 +56,9 @@
  * runs started in the same second are the same run.
  *
  * output.txt has a first line with the parameters and then one line for each
- * saved time, RESOLUTION of them in a unit of time, from the time 0: the
- * colours of the sites of the row.
+ * saved time, RESOLUTION of them in a unit of time, from the time 0 to the
+ * last one not after T, where the run ends: the colours of the sites of the
+ * row.
  * output.pgm is the same as a picture, with the time going upwards.
  */
 

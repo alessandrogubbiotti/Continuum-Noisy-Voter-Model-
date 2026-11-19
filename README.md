@@ -70,7 +70,7 @@ The parameters are the `#define` at the top of `nvm_sim.c`:
 
 - **`N`** The sites in a unit of length. The default is `300`.
 - **`L`** The length of the ring, an integer. The default is `1`.
-- **`T`** The final time. The default is `2`.
+- **`T`** The final time. The default is `2`. The run ends at the last saved time not after `T`: with `T` smaller than `1/RESOLUTION` no step is made.
 - **`LAMBDA`** The rate of the marks. The default is `1.0`.
 - **`RESOLUTION`** The saved rows in a unit of time. The default is `100`.
 - **`SEED`** The seed of the random numbers. With `0`, the default, it is taken from the clock, in seconds: two runs started in the same second are the same run.
@@ -88,7 +88,7 @@ The program writes
 - **`output.txt`** A first line with the parameters, and then one line for each saved time, from the time $0$: the colours of the sites of the row.
 - **`output.pgm`** The same as a picture, with the time going upwards.
 
-It prints the density of the interfaces, averaged over the second half of the run, next to its limit on the ring and on the line. With the default parameters the ring has less than one interface on average, so the density of one run is far from the limit. The check below uses a long ring.
+It prints the density of the interfaces, averaged over the second half of the run, next to its limit on the ring and on the line. With the default parameters the ring has less than one interface on average, so the density of one run can be far from the limit. The check below uses a long ring.
 
 ---
 
